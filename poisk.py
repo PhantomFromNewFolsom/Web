@@ -35,6 +35,7 @@ search_params = {
     "text": "аптека",
     "lang": "ru_RU",
     "ll": address_ll,
+    "results": 10,
     "type": "biz"
 }
 
@@ -45,17 +46,8 @@ if not response:
 # Преобразуем ответ в json-объект
 json_response = response.json()
 
-# Получаем первую найденную организацию.
-organization = json_response["features"][0]
+organizations = json_response["features"][:11]
 # Название организации.
-org_name = organization["properties"]["CompanyMetaData"]["name"]
-# Адрес организации.
-org_address = organization["properties"]["CompanyMetaData"]["address"]
-
-# Получаем координаты ответа.
-point = organization["geometry"]["coordinates"]
-org_point = f"{point[0]},{point[1]}"
-apikey = "f3a0fe3a-b07e-4840-a1da-06f18b2ddf13"
 
 
 def map_params(toponym):
@@ -63,11 +55,22 @@ def map_params(toponym):
     # Долгота и широта:
     toponym_longitude, toponym_lattitude = toponym_coodrinates.split(" ")
     apikey = "f3a0fe3a-b07e-4840-a1da-06f18b2ddf13"
+    pt = f'{toponym_longitude},{toponym_lattitude},pm2rdl'
 
     # Собираем параметры для запроса к StaticMapsAPI:
+    for organization in organizations:
+        time = organization['properties']['CompanyMetaData']['Hours']['text']
+        point = organization["geometry"]["coordinates"]
+        org_point = f"{point[0]},{point[1]}"
+        if 'круглосуточно' in time:
+            pt += f'~{org_point},pm2dgl'
+        elif time == '':
+            pt += f'~{org_point},pm2grl'
+        else:
+            pt += f'~{org_point},pm2dbl'
     map_params = {
         "apikey": apikey,
-        "pt": f'{toponym_longitude},{toponym_lattitude},pm2ntl~{org_point},pm2dgl'
+        "pt": pt
 
     }
     return map_params
@@ -78,12 +81,6 @@ toponym_longitude, toponym_lattitude = toponym_coodrinates.split(" ")
 map_api_server = "https://static-maps.yandex.ru/v1"
 # ... и выполняем запрос
 response = requests.get(map_api_server, params=map_params(toponym))
-print(point[0], float(toponym_longitude), point[1], float(toponym_lattitude))
-way = sqrt((point[0] - float(toponym_longitude)) ** 2 + (point[1] - float(toponym_lattitude)) ** 2)
-print(f'''Расстояние: {way} градусов
-Название: {organization['properties']['CompanyMetaData']['name']}
-Адрес аптеки: {organization['properties']['CompanyMetaData']['address']}
-Время работы: {organization['properties']['CompanyMetaData']['Hours']['text']}''')
 im = BytesIO(response.content)
 opened_image = Image.open(im)
 opened_image.show()
